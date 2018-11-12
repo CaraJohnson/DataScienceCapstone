@@ -1,0 +1,11 @@
+# Links to published data products
+
+Shiny: https://carajohnson.shinyapps.io/PredictWord/
+
+Milestone Report: http://rpubs.com/CaraJ/434780
+
+Slide Deck: http://rpubs.com/CaraJ/CapstonePresentation
+
+# Course dataset
+
+https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip
