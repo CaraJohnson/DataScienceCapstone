@@ -1,0 +1,174 @@
+---
+title: "Milestone Report"
+author: "Cara Johnson"
+date: "October 27, 2018"
+output: html_document
+---
+# Data Science Specialization Capstone Project
+
+## Purpose  
+The first milestone in the Capstone Project is to download the source data and successfully load it into R, to perform exploratory data analysis, report any interesting findings, and to lay out initial plans for creating a prediction algorithm and Shiny app.  
+
+## Setup R
+```{r, cache=TRUE}
+# Setup packages
+library(readr)
+library(readtext)
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(RWeka)
+library(ggplot2)
+library(ngram)
+```
+
+## Load the dataset
+The source files are saved to the local directory.  
+```{r, cache=TRUE}
+setwd("C:/Users/Cara/Documents/Coursera Data Science/Class 10 - Capstone/final/en_US")
+file1 <- "en_US.blogs.txt"
+file2 <- "en_US.twitter.txt"
+file3 <- "en_US.news.txt"
+blog <- read_lines(file1)
+twitter <- read_lines(file2)
+news <- read_lines(file3)
+```
+
+## Summarize the data  
+Find the total lines of text and total word counts for each of the three data sources.  
+```{r, cache=TRUE}
+# Count lines of text
+blogLines <- length(blog)
+twitterLines <- length(twitter)
+newsLines <- length(news)
+# Word counts
+blogCount <- wordcount(blog)
+twitterCount <- wordcount(twitter)
+newsCount <- wordcount(news)
+# compile dataframe
+temp <- data.frame(File=c("blog","twitter","news"),Lines=c(blogLines,twitterLines,newsLines),WordCount=c(blogCount,twitterCount,newsCount))
+temp$File <- as.factor(temp$File)
+
+# Summary Plots
+g1 <- ggplot(temp,aes(x=File,y=Lines)) +
+        geom_bar(stat = "identity") +
+        labs(title="Line Count by File")
+
+g2 <- ggplot(temp,aes(x=File,y=WordCount)) +
+        geom_bar(stat = "identity") +
+        labs(title="Word Count by File")
+g1
+g2
+```
+
+## Subset the data  
+To make future processing more efficient, it is necessary to reduce the data set to a more manageable size.  
+Then compile the three data sources into one data set and convert the dataset into a corpus.  
+```{r, cache=TRUE}
+set.seed(123)
+# take 1% of total lines for each source
+blog <- sample(blog,length(blog)*0.01)
+twitter <- sample(twitter,length(twitter)*0.01)
+news <- sample(news,length(news)*0.01)
+# compile
+data1 <- c(blog,twitter,news)
+# create a corpus
+data <- VCorpus(VectorSource(data1))
+```
+Print the first line of the corpus.  
+```{r, cache=TRUE}
+data[[1]][1]
+```
+
+## Clean the data
+It is important to remove unwanted characters, punctuation, numbers, and stopwords. Words are stemmed, all characters are converted to lower case, and extra white space is removed.  
+These steps create a tidy dataset that will produce useful results.  
+```{r, cache=TRUE}
+# function to convert unwanted characters to spaces
+toSpace <- content_transformer(function(x, characters) gsub(characters, " ", x))
+# Remove URL
+data <- tm_map(data, toSpace, "(f|ht)tp(s?)://(.*)[.][a-z]+")
+# Remove twitter handle
+data <- tm_map(data, toSpace, "@[^\\s]+")
+# Remove hashtag
+data <- tm_map(data, toSpace, "#\\S+")
+# Stemming 
+data <- tm_map(data, stemDocument)
+# Remove punctuation
+data <- tm_map(data, removePunctuation)
+# Remove numbers
+data <- tm_map(data, removeNumbers)
+# Remove stopwords
+data <- tm_map(data, removeWords, stopwords(kind="en"))
+# Case conversion
+data <- tm_map(data, content_transformer(tolower))
+# Remove whitespace
+data <- tm_map(data, stripWhitespace)
+```
+
+## Create ngrams  
+This step is necessary to characterize the data.   
+Use the RWeka package to tokenize the data and create ngrams.  
+```{r, cache=TRUE}
+# Create tokenizer functions
+OneGramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 1, max = 1))
+TwoGramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+ThreeGramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 3, max = 3))
+# Create term document matrices
+tdmOne <- TermDocumentMatrix(data, control = list(tokenize = OneGramTokenizer))
+tdmTwo <- TermDocumentMatrix(data, control = list(tokenize = TwoGramTokenizer))
+tdmThree <- TermDocumentMatrix(data, control = list(tokenize = ThreeGramTokenizer))
+```
+
+## Visualize the data  
+Create a frequency table for each ngram set. 
+Then create plots to visualize the most commonly found ngrams.  
+```{r, cache=TRUE}
+## Create frequency table for each ngram
+# remove sparse terms from the tdm
+tdmOne1 <- removeSparseTerms(tdmOne,0.999)
+tdmTwo1 <- removeSparseTerms(tdmTwo,0.999)
+tdmThree1 <- removeSparseTerms(tdmThree,0.999)
+# find fequencies for each term
+FreqOne <- rowSums(as.matrix(tdmOne1))
+FreqTwo <- rowSums(as.matrix(tdmTwo1))
+FreqThree <- rowSums(as.matrix(tdmThree1))
+# convert to dataframe
+FreqOne <- data.frame(Gram=names(FreqOne),Frequency=FreqOne)
+FreqTwo <- data.frame(Gram=names(FreqTwo),Frequency=FreqTwo)
+FreqThree <- data.frame(Gram=names(FreqThree),Frequency=FreqThree)
+# sort by decreasing freq
+FreqOne <- FreqOne[order(-FreqOne$Frequency),]
+FreqTwo <- FreqTwo[order(-FreqTwo$Frequency),]
+FreqThree <- FreqThree[order(-FreqThree$Frequency),]
+# plots
+g1 <- ggplot(head(FreqOne,25), aes(x=reorder(Gram,-Frequency), y=Frequency)) +
+        geom_bar(stat = "identity") +  coord_flip() +
+        xlab("Unigram") + ylab("Frequency") +
+        labs(title = "25 Most Common Unigrams")
+
+g2 <- ggplot(head(FreqTwo,25), aes(x=reorder(Gram,-Frequency), y=Frequency)) +
+        geom_bar(stat = "identity") +  coord_flip() +
+        xlab("Biigram") + ylab("Frequency") +
+        labs(title = "25 Most Common Bigrams")
+
+g3 <- ggplot(FreqThree, aes(x=reorder(Gram,-Frequency), y=Frequency)) +
+        geom_bar(stat = "identity") +  coord_flip() +
+        xlab("Trigram") + ylab("Frequency") +
+        labs(title = "Most Common Trigrams")
+g1
+g2
+g3
+```
+
+Create Word Cloud plots as another way to visualize the most common ngrams.  
+
+```{r, cache=TRUE}
+wordcloud(FreqOne$Gram, FreqOne$Frequency, min.freq=150, max.words = 100)
+wordcloud(FreqTwo$Gram, FreqTwo$Frequency, min.freq=10, max.words = 60)
+wordcloud(FreqThree$Gram, FreqThree$Frequency, min.freq=1, max.words = 100)
+```
+
+## Future Plans  
+The ultimate goal is to create a prediction algorithm and incorporate it into a Shiny app. The user will be able to input any word or words and the the app will output a prediction for the next word that the user intends to type.  
+This sort of prediction routine is often used on mobile devices for messaging keyboards.

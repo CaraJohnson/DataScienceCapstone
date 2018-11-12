@@ -1,0 +1,62 @@
+# RSQLite Notes
+
+# on RSQLite package
+https://db.rstudio.com/databases/sqlite/
+http://users.stat.umn.edu/~yang3175/lit_sem/RSQLite_Tutorial.html#6
+https://www.r-bloggers.com/r-and-sqlite-part-1/
+
+# example query
+dbGetQuery(db.bball, "select * from BASEBALL where League='AL' and RSW<810")
+
+
+install.packages("DBI")
+library(DBI)
+
+# Create an ephemeral in-memory RSQLite database
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+
+# Copy in the buit-in mtcars data frame
+dbWriteTable(con, "mtcars", mtcars, row.names = FALSE)
+
+# Fetch all results from a query:
+res <- dbSendQuery(con, "SELECT * FROM mtcars WHERE cyl = 4 AND mpg < 23")
+dbFetch(res)
+
+dbClearResult(res)
+# use dbClearResult() before running a new dbSendQuery
+
+# Or fetch them a chunk at a time
+res <- dbSendQuery(con, "SELECT * FROM mtcars WHERE cyl = 4")
+while(!dbHasCompleted(res)){
+  chunk <- dbFetch(res, n = 10)
+  print(nrow(chunk))
+}
+
+dbClearResult(res)
+
+# Good practice to disconnect from the database when you're done
+dbDisconnect(con)
+
+
+# other functions
+dbIsValid()
+dbBegin()
+dbFetch()
+sqliteBuildTableDefinition() 
+
+
+# list the tables in the database
+dbListTables(db)
+
+# list the columns in a table
+dbListFields(db, "BASEBALL") 
+
+# print the data in a table
+head(dbReadTable(db, "BASEBALL"))
+
+# example
+SELECT * FROM my_table GROUP BY value ORDER BY count(*) DESC;
+
+
+
+
